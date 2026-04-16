@@ -7,9 +7,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from solve_for_flow import solve_for_flow
 from make_segments import make_segments
 
-# ============================================================
-# 1.  PARAMETERS  (Table 1, Edgar et al. 2021)
-# ============================================================
 Nseg    = 40           # Total vessel segments
 n0      = 8            # Initial cells per segment
 w       = 5e-6         # EC lateral width  [m]
@@ -28,18 +25,11 @@ dt_days = dt_h / 24.0           # ≈ 0.139 days per step
 L        = np.ones(Nseg) * L_seg
 segments = make_segments(L)      # For optional network plotting
 
-# ============================================================
-# 2.  NETWORK TOPOLOGY — key indices
-# ============================================================
 # Key segments at the flow-convergent bifurcation (reunion, Node 15)
 PROX_LAST   = 14   # Last segment of proximal → ends at Node 15
 DIST_LAST   = 39   # Last segment of distal   → ends at Node 15
 DRAIN_FIRST = 15   # First seg of draining vessel (starts at Node 15 — the DECISION POINT)
 
-
-# ============================================================
-# 3.  HYDRAULICS  (Hagen–Poiseuille, Eqs 1–3 of paper)
-# ============================================================
 def compute_conductance(Ncell):
     """
     Compute lumen diameter D, conductance G, and shear-stress factor H
@@ -63,10 +53,6 @@ def compute_conductance(Ncell):
     H = 32.0  * mu   / (np.pi  * D**3)
     return D, G, H
 
-
-# ============================================================
-# 4.  POLARITY UPDATE  (ECs polarise AGAINST flow)
-# ============================================================
 # Weight coefficients for polarity realignment
 w1 = 0.30   # Persistence (previous direction)
 w2 = 0.30   # Flow component (against flow → upstream direction)
@@ -123,9 +109,6 @@ def update_polarity(seg_polarity, seg, Q):
     return (new_pol / norm_new) if norm_new > 0 else p_old
 
 
-# ============================================================
-# 5.  BIFURCATION RULES  (Section "EC migration…", Eqs 8–15)
-# ============================================================
 def apply_br(rule, alpha, tau, Ncell):
     """
     Stochastic bifurcation decision for ONE cell arriving at the
@@ -169,50 +152,7 @@ def apply_br(rule, alpha, tau, Ncell):
 
     return PROX_LAST   # fallback
 
-
-# ============================================================
-# 6.  MIGRATION STEP  (all cells move one segment upstream)
-# ============================================================
 def migrate(Ncell, tau, rule, alpha):
-    """
-    Advance every EC one segment upstream (against flow) simultaneously.
-
-    Migration logic per segment type
-    ---------------------------------
-    Feeding (0–4):
-      Seg 0 → cells EXIT at inlet → PERIODIC BC → re-enter at seg 19
-      Segs 1–4 → cells shift one position toward inlet
-
-    Node-5 junction (flow-divergent, migration-convergent):
-      Seg  5 (proximal start) → feeds into seg 4 (feeding end)
-      Seg 20 (distal   start) → feeds into seg 4  (same junction)
-      No decision needed: only one upstream path (the feeding vessel).
-
-    Proximal branch (6–14):
-      Segs 6–14 → simple upstream shift (seg s → seg s-1)
-      Seg PROX_LAST (14) receives cells from the bifurcation decision below.
-
-    Distal branch (21–39):
-      Segs 21–39 → simple upstream shift (seg s → seg s-1)
-      Seg DIST_LAST (39) receives cells from the bifurcation decision below.
-
-    Node-15 junction — flow-CONVERGENT bifurcation (THE KEY DECISION):
-      Each cell in seg DRAIN_FIRST (15) independently applies the BR rule
-      and enters either PROX_LAST (14) or DIST_LAST (39).
-
-    Draining (16–19):
-      Segs 16–19 → simple upstream shift (seg s → seg s-1)
-      Seg 15 receives cells from seg 16.
-
-    Cell conservation: every Ncell[s] is consumed exactly once and
-    redistributed to a unique destination, so sum(new_Ncell) = sum(Ncell).
-
-    Note on intercalation:
-      Edgar et al. include a smoothing step ("if cells leaving > incoming
-      AND incoming > 0, one cell stays behind") to reduce sharp diameter
-      oscillations.  It is omitted here for clarity; its main effect is to
-      damp transient fluctuations without changing steady-state behaviour.
-    """
     new_N = np.zeros(Nseg)
 
     # ② numpy slices replace the original for loops (same arithmetic result)
@@ -230,9 +170,6 @@ def migrate(Ncell, tau, rule, alpha):
     return new_N
 
 
-# ============================================================
-# 7.  SINGLE SIMULATION RUN
-# ============================================================
 def run_sim(rule, alpha=0.45, seed=0):  # ④ removed unused track_polarity parameter
     """
     Run the ABM for Nt time steps with the specified bifurcation rule.
@@ -311,9 +248,6 @@ def run_sim(rule, alpha=0.45, seed=0):  # ④ removed unused track_polarity para
     return np.array(prox_D), np.array(dist_D), lost, t_lost, Ncell
 
 
-# ============================================================
-# 8.  BR5 PROBABILITY TRACKER (for oscillation analysis)
-# ============================================================
 def run_sim_with_probabilities(alpha=0.45, seed=0):
     """
     Run BR5 and record the branch probabilities P_tau and P_n over time,
@@ -351,9 +285,6 @@ def run_sim_with_probabilities(alpha=0.45, seed=0):
             np.array(P_total), np.array(P_tau_hist), np.array(P_n_hist))
 
 
-# ============================================================
-# 9.  PLOTTING
-# ============================================================
 def _plot_multi_seed(ax, t_ax, rule, alpha, n_runs):
     """⑤ Shared helper: run n_runs seeds and plot mean ± SD bands."""
     all_p, all_d, n_lost = [], [], 0
@@ -379,12 +310,6 @@ def _status_box(ax, txt, color):
 
 
 def make_comparison_figure(n_runs=10, alpha_br5=0.45, out_path=None):
-    """
-    Produce a 3-panel comparison figure (BR1 / BR3 / BR5) matching the
-    style of Fig 2 in Edgar et al. (2021).
-
-    Returns lists of prox/dist diameter arrays for further analysis.
-    """
     t_ax = np.arange(Nt+1) * dt_days
 
     fig, axes = plt.subplots(1, 3, figsize=(16, 5), sharey=False)
@@ -409,7 +334,7 @@ def make_comparison_figure(n_runs=10, alpha_br5=0.45, out_path=None):
     _ax_style(ax)
     results['BR1'] = (pD, dD, lost)
 
-    # -------- BR3 and BR5 (⑤ unified via shared helper) --------
+    # -------- BR3 and BR5  --------
     for ax, rule, alpha, title, key in [
         (axes[1], 3, 0.5,      f'BR3: Equal probability P=0.5\n(mean ± SD over {n_runs} seeds)', 'BR3'),
         (axes[2], 5, alpha_br5, f'BR5: Combined cues (α={alpha_br5})\n(mean ± SD over {n_runs} seeds)', 'BR5'),
@@ -432,10 +357,6 @@ def make_comparison_figure(n_runs=10, alpha_br5=0.45, out_path=None):
 
 
 def make_probability_figure(alpha=0.45, seed=3, out_path=None):
-    """
-    For one BR5 run, plot the branch probability and its shear/cell-number
-    decomposition over time (style of Fig 4, Edgar et al. 2021).
-    """
     prox_D, dist_D, P_tot, P_tau, P_n = run_sim_with_probabilities(alpha, seed)
     t_ax  = np.arange(Nt+1) * dt_days
     t_mid = np.arange(Nt)   * dt_days + dt_days/2   # midpoints for probabilities
@@ -469,9 +390,6 @@ def make_probability_figure(alpha=0.45, seed=3, out_path=None):
     plt.close()
 
 
-# ============================================================
-# 10.  MAIN — run and report
-# ============================================================
 if __name__ == '__main__':
     N_RUNS    = 10       # paper uses 1000; 10 is sufficient for illustration
     ALPHA_BR5 = 0.45     # peak stability value from paper (Fig 3)
