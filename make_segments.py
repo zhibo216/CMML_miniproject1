@@ -6,7 +6,6 @@ This file has been minimal updated.
 import numpy as np
 
 def make_segments(L):
-    # You do not need 6 direction vectors
     v_up = np.array([0, 1])
     v_right = np.array([1, 0])
     v_down = np.array([0, -1])
